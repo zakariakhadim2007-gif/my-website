@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>:)</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #msg {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    padding: 24px; box-sizing: border-box; text-align: center; white-space: pre-line;
+    color: #2eff55; font: 600 clamp(20px, 5.5vw, 34px)/1.6 "Courier New", monospace;
+    text-shadow: 0 0 10px #2eff55; pointer-events: none;
+  }
+  #msg::after { content: "▌"; margin-left: 2px; animation: blink 1s steps(1) infinite; }
+  #msg.done::after { display: none; }
+  @keyframes blink { 50% { opacity: 0; } }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="msg"></div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const msg = document.getElementById('msg');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+let W, H;
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const SEG = { '0': 'abcdef', '2': 'abged', '4': 'fgbc', '6': 'acdefg', '8': 'abcdefg' };
+const EVEN = Object.keys(SEG);
+
+function drawDigit(ch, x, y, size) {
+  const w = size * 0.62, h = size, t = size * 0.15, g = t * 0.12;
+  const s = SEG[ch];
+  const hz = (yy) => ctx.fillRect(x + t * 0.7 + g, yy, w - t * 1.4 - 2 * g, t);
+  const vt = (xx, y0) => ctx.fillRect(xx, y0 + t * 0.7 + g, t, h / 2 - t * 1.4 - 2 * g + t * 0.5);
+  if (s.includes('a')) hz(y);
+  if (s.includes('g')) hz(y + h / 2 - t / 2);
+  if (s.includes('d')) hz(y + h - t);
+  if (s.includes('f')) vt(x, y);
+  if (s.includes('b')) vt(x + w - t, y);
+  if (s.includes('e')) vt(x, y + h / 2 - t / 2 - t * 0.25);
+  if (s.includes('c')) vt(x + w - t, y + h / 2 - t / 2 - t * 0.25);
+}
+
+const LAYERS = [
+  { size: 12, color: 'rgba(46,255,85,0.45)', density: 0.75, speed: 0.22 },
+  { size: 22, color: 'rgba(46,255,85,0.75)', density: 0.6,  speed: 0.17 },
+  { size: 36, color: '#2eff55',              density: 0.5,  speed: 0.12 }
+];
+
+function makeColumns() {
+  const cols = [];
+  for (const L of LAYERS) {
+    const step = L.size * 0.95;
+    const n = Math.ceil(W / step);
+    const rowH = L.size * 1.4;
+    for (let i = 0; i < n; i++) {
+      if (Math.random() > L.density) continue;
+      cols.push({
+        L, x: i * step + Math.random() * 4, rowH,
+        head: -Math.random() * 14,
+        len: 5 + Math.random() * (H / rowH) * 0.8,
+        speed: L.speed * (0.6 + Math.random() * 0.8),
+        chars: []
+      });
+    }
+  }
+  return cols;
+}
+
+function rainOnce() {
+  return new Promise(resolve => {
+    const cols = makeColumns();
+    (function frame() {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, W, H);
+      let active = false;
+      for (const c of cols) {
+        const rows = H / c.rowH;
+        const tail = Math.max(0, c.head - c.len);
+        if (tail > rows + 1) continue;
+        active = true;
+        const first = Math.floor(tail), last = Math.floor(Math.min(c.head, rows + 1));
+        ctx.fillStyle = c.L.color;
+        for (let r = first; r <= last; r++) {
+          if (r < 0) continue;
+          if (!c.chars[r] || Math.random() < 0.015) c.chars[r] = EVEN[Math.floor(Math.random() * EVEN.length)];
+          drawDigit(c.chars[r], c.x, r * c.rowH, c.L.size);
+        }
+        c.head += c.speed;
+      }
+      if (active) requestAnimationFrame(frame);
+      else resolve();
+    })();
+  });
+}
+
+async function typeText(text, keep) {
+  msg.classList.remove('done');
+  msg.textContent = '';
+  for (const ch of text) {
+    msg.textContent += ch;
+    await sleep(ch === '\n' ? 500 : 70);
+  }
+  await sleep(2500);
+  if (keep) { msg.classList.add('done'); return; }
+  msg.textContent = '';
+  await sleep(500);
+}
+
+(async function run() {
+  await sleep(400);
+  await rainOnce();
+  await typeText("happy 3 years of knowing each other\nMay god keep it until i get married", false);
+  await rainOnce();
+  await typeText("alr we're done hhhh", true);
+})();
+</script>
+</body>
+</html>
